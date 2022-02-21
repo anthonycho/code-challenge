@@ -15,16 +15,35 @@ async function processPost(req) {
     return database.updateTask(data);
 }
 
-task.route('/')
+async function createQuery(query) {
+    const transformer = {
+        TODO: 'todoId',
+        CREATOR: 'creator',
+        STATUS: 'status',
+        DUE_DATE: 'due',
+        TITLE: 'title',
+        DESCRIPTION: 'description',
+        ASSIGNED: 'assigned'
+    }
+    
+    const filter = {};
+    res.send(await database.queryTasks(filter));
+}
+
+task.route('query')
     .get(async (req, res, next) => {
         //username, startTime, endTime
         const data = {
             username: req.query.username || username,
             endDay: req.query.endDay,
             startDay: req.query.startDay,
-            days: req.query.days,
-            status: req.query.status
+            status: req.query.status,
+            assigned: req.query.assigned,
+            creator: req.query.creator,
+            title: req.query.title,
+            description: req.query.description
         }
+
         // try parsing dates
         let endTime;
         let startTime;
@@ -37,12 +56,25 @@ task.route('/')
             res.send(await database.getExpiringTasks(data.username, startTime, endTime));
         } catch (error) {
             if (error === 'Invalid Date') {
-                return next({
+                next({
                     message: 'Please enter a valid ISO date (yyyy-mm-dd)',
                     status: 400
-                  });
+                });
             } 
-            return next(error);
+            next(error);
+        }
+    });
+
+task.route('/')
+    .get(async (req, res, next) => {
+        // get expiring tasks within the next 7 days
+        let days = req.query.days || 7;
+        try {
+            endTime = addDays(endOfDay(new Date()), days);
+            startTime = new Date();
+            res.send(await database.getExpiringTasks(username, startTime, endTime));
+        } catch (error) {
+            next(error);
         }
         
     })
@@ -58,7 +90,7 @@ task.route('/')
             [TASK_SCHEMA.DESCRIPTION]: ''
         })
         const result = await processPost(req).catch((e) => {
-            return next(e);
+            next(e);
         });
         res.send(result);
     });
