@@ -165,8 +165,35 @@ const updateTodo = async (update) => {
     );
 }
 
-const deleteTodo = async (filter) => {
-    return remove('todo', filter);
+const deleteSingleTodo = async (todoId) => {
+    // create a transaction because we need to delete all todo and tasks under the todo
+    const session = client.startSession();
+    let transactionResult = {};
+    let err;
+    try {
+        // a bit of a hack to get our return value because 'withTransaction' returns null on success
+        await session.withTransaction(async () => {
+            const todo = await remove('todo', {_id : todoId});
+            const tasks = await deleteTask({[TASK_SCHEMA.TODO] : todoId});
+            console.log(todo);
+            console.log(tasks);
+            console.log("Test4")
+            transactionResult = {
+                todo: todo,
+                tasks: tasks
+            };
+        });
+    } catch (e) {
+        console.log(e);
+        err = e;
+    } finally {
+        await session.endSession();
+        if (err) {
+            throw err 
+        }
+        console.log(transactionResult)
+        return transactionResult;
+    }
 }
 
 const getExpiringTasks = async (username, startTime, endTime) => {
@@ -216,6 +243,5 @@ module.exports = {
     getExpiringTasks: errorWrapper(getExpiringTasks, errorHandler),
     queryTodo: errorWrapper(queryTodo, errorHandler),
     updateTodo: errorWrapper(updateTodo, errorHandler),
-    deleteTodo: errorWrapper(deleteTodo, errorHandler),
-    
+    deleteSingleTodo: errorWrapper(deleteSingleTodo, errorHandler),
 }

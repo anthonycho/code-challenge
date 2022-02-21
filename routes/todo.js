@@ -42,12 +42,7 @@ todo.route('/:todoId')
     .delete(async (req, res, next) => {
         try {
             const todoId = req.params.todoId;
-            const todo = await database.deleteTodo({_id : todoId});
-            const tasks = await database.deleteTask({[TASK_SCHEMA.TODO] : todoId})
-            res.send({
-                todo: todo,
-                tasks: tasks
-            });
+            res.send(await database.deleteSingleTodo(todoId));
         } catch(e) {
             next(e);
         }
