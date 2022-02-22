@@ -82,6 +82,7 @@ async function initializeDatabase() {
                         description: 'must be a date and is required'
                     },
                     [TASK_SCHEMA.STATUS]: {
+                        bsonType: 'string',
                         enum: Object.values(STATUS_ENUM),
                         description: `must be a one of ${Object.values(STATUS_ENUM)} and is required`
                     }
@@ -175,9 +176,6 @@ const deleteSingleTodo = async (todoId) => {
         await session.withTransaction(async () => {
             const todo = await remove('todo', {_id : todoId});
             const tasks = await deleteTask({[TASK_SCHEMA.TODO] : todoId});
-            console.log(todo);
-            console.log(tasks);
-            console.log("Test4")
             transactionResult = {
                 todo: todo,
                 tasks: tasks
@@ -191,7 +189,6 @@ const deleteSingleTodo = async (todoId) => {
         if (err) {
             throw err 
         }
-        console.log(transactionResult)
         return transactionResult;
     }
 }

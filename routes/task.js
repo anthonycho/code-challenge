@@ -11,30 +11,13 @@ async function processPost(req) {
         data[TASK_SCHEMA.TODO] = req.body.todoId;
     }
     data['_id'] = taskId;
-    console.log(data)
     return database.updateTask(data);
 }
 
-async function createQuery(query) {
-    const transformer = {
-        TODO: 'todoId',
-        CREATOR: 'creator',
-        STATUS: 'status',
-        DUE_DATE: 'due',
-        TITLE: 'title',
-        DESCRIPTION: 'description',
-        ASSIGNED: 'assigned'
-    }
-    
-    const filter = {};
-    res.send(await database.queryTasks(filter));
-}
-
-task.route('query')
+task.route('/query')
     .get(async (req, res, next) => {
         //username, startTime, endTime
         const data = {
-            username: req.query.username || username,
             endDay: req.query.endDay,
             startDay: req.query.startDay,
             status: req.query.status,
@@ -43,17 +26,44 @@ task.route('query')
             title: req.query.title,
             description: req.query.description
         }
-
-        // try parsing dates
-        let endTime;
-        let startTime;
+        
+        // indexed based on assigned, status, time
+        const indexedQuery = {};
+        indexedQuery[TASK_SCHEMA.ASSIGNED] = data.assigned || username;
+        indexedQuery[TASK_SCHEMA.STATUS] = { 
+            $in: data.status ? data.status.split(',').map(status => status.toUpperCase()) : Object.values(STATUS_ENUM)
+        };
         try {
-            endTime = data.endDay ? parseISO(data.endDay) : addDays(endOfDay(new Date()), data.days || 7);
-            startTime = data.startDay ? parseISO(data.startDay) : new Date();
-            if (!isValid(endTime) || !isValid(startTime)) {
+            if (isValid(data.startDay)) {
+                indexedQuery[TASK_SCHEMA.DUE_DATE] = indexedQuery[TASK_SCHEMA.DUE_DATE] || {};
+                timeConstraints[$gte] = parseISO(data.startDay);
+            } else if (data.startDay) {
                 throw "Invalid Date";
             }
-            res.send(await database.getExpiringTasks(data.username, startTime, endTime));
+            if (isValid(data.endDay)) {
+                indexedQuery[TASK_SCHEMA.DUE_DATE] = indexedQuery[TASK_SCHEMA.DUE_DATE] || {};
+                timeConstraints[$lte] = parseISO(data.endDay);
+            } else if (data.startDay) {
+                throw "Invalid Date";
+            }
+
+            if (data.creator) {
+                indexedQuery[TASK_SCHEMA.CREATOR] = data.creator;
+            }
+            
+            if (data.title) {
+                indexedQuery[TASK_SCHEMA.TITLE] = {
+                    $regex: data.title
+                }
+            }
+            
+            if (data.description) {
+                indexedQuery[TASK_SCHEMA.DESCRIPTION] = {
+                    $regex: data.description
+                }
+            }
+
+            res.send(await database.queryTasks(indexedQuery));
         } catch (error) {
             if (error === 'Invalid Date') {
                 next({
@@ -81,14 +91,14 @@ task.route('/')
     .post(async (req, res, next) => {
         // set defaults
         req.body = req.body || {};
-        Object.assign(req.body, {
+        req.body = Object.assign({
             [TASK_SCHEMA.CREATOR]: username,
             [TASK_SCHEMA.ASSIGNED]: username,
             [TASK_SCHEMA.STATUS]: STATUS_ENUM.NEW,
             [TASK_SCHEMA.DUE_DATE]: addDays(endOfDay(new Date()), 7),
             [TASK_SCHEMA.TITLE]: '',
             [TASK_SCHEMA.DESCRIPTION]: ''
-        })
+        }, req.body);
         const result = await processPost(req).catch((e) => {
             next(e);
         });
