@@ -14,6 +14,14 @@ async function processPost(req) {
     return database.updateTask(data);
 }
 
+function isValidStringDate(dateAsString) {
+    const parsedDate = parseISO(dateAsString);
+    if (isValid(parsedDate)) {
+        return parsedDate;
+    }
+    throw "Invalid Date";
+}
+
 task.route('/query')
     .get(async (req, res, next) => {
         //username, startTime, endTime
@@ -34,17 +42,15 @@ task.route('/query')
             $in: data.status ? data.status.split(',').map(status => status.toUpperCase()) : Object.values(STATUS_ENUM)
         };
         try {
-            if (isValid(data.startDay)) {
+            if (data.startDay) {
+                const startDay = isValidStringDate(data.startDay);
                 indexedQuery[TASK_SCHEMA.DUE_DATE] = indexedQuery[TASK_SCHEMA.DUE_DATE] || {};
-                timeConstraints[$gte] = parseISO(data.startDay);
-            } else if (data.startDay) {
-                throw "Invalid Date";
+                indexedQuery[TASK_SCHEMA.DUE_DATE].$gte = startDay;
             }
-            if (isValid(data.endDay)) {
+            if (data.endDay) {
+                const endDay = isValidStringDate(data.endDay);
                 indexedQuery[TASK_SCHEMA.DUE_DATE] = indexedQuery[TASK_SCHEMA.DUE_DATE] || {};
-                timeConstraints[$lte] = parseISO(data.endDay);
-            } else if (data.startDay) {
-                throw "Invalid Date";
+                indexedQuery[TASK_SCHEMA.DUE_DATE].$lte = endDay;
             }
 
             if (data.creator) {
